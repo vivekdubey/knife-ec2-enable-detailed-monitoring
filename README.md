@@ -8,13 +8,13 @@ Example:
 
 1) Enable detailed monitoring of instance with chef node name:
 
-   knife enable ec2 monitoring -N <node name>
+   	knife enable ec2 monitoring -N <node name>
 	
 	 Region is optional over here as chef server gives the actual region of the instance.
 
 2) Enable detailed monitoring of instance with instance id in default region i.e. us-east-1:
 
-   knife enable ec2 monitoring -I <instance id>
+   	knife enable ec2 monitoring -I <instance id>
 	 
 	 Default region that this plugin assumes is us-east-1. So, if the instance is in us-east-1 then it will enable it's monitoring else it will fail.
 
