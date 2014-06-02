@@ -47,22 +47,30 @@ class Chef
 				:default => "#{Chef::Config[:knife][:aws_secret_access_key]}",
 				:proc => Proc.new { |access| Chef::Config[:knife][:aws_secret_access_key] = access }	
 			
-			def validate(node_name,instance_id,region)
+			def validate
+				node_name = Chef::Config[:knife][:chef_nodename]
+        instance_id = Chef::Config[:knife][:instance_id]
+        region = Chef::Config[:knife][:instance_region]
 				if node_name.nil?
 					if instance_id.nil?
 						ui.error("Both Chef Node name and instance id are nil!! Expecting at least one of them")
 						return [false]
 					else
-						ui.warn("Node name nil not instance_id")
-						return [true,"check_on_instanceid"]
+					  ui.warn("Node name nil not instance_id")
+						return [true,region,instance_id]
 					end
 				else
 					if instance_id.nil?
-						ui.warn("Node name not nil and instance_id nil")
-						return [true,"check_on_nodename"]
+						ui.warn("Node name not nil and instance_id nil")	
+						puts "Output:: #{get_region_instance_id(node_name)}"
+						if get_region_instance_id(node_name).length == 0
+							ui.error("Node name doesn't exist!!")
+							return [false]
+						end
 					else
-						ui.warn("node name and instance id both not nill")
-						return [((get_region_instance_id(node_name))[1] == instance_id),"check_on_nodename"]
+						ui.warn("Node name and instance ID is there")	
+						puts "Node name:: #{node_name}"
+						return get_region_instance_id(node_name)	
 					end
 				end
 			end
@@ -70,12 +78,18 @@ class Chef
 			def get_region_instance_id(chef_node_name)
 				q = Chef::Search::Query.new
 				srch = q.search(:node, "name:#{chef_node_name}")
-				region = srch[0][0]['ec2']['placement_availability_zone']
-				region[ region.length - 1] = ''
-				return [region, srch[0][0]['ec2']['instance_id']]
+				begin
+					region = srch[0][0]['ec2']['placement_availability_zone']
+					instance_id  = srch[0][0]['ec2']['instance_id']
+					region[ region.length - 1] = ''
+					return [true,region, instance_id]
+				rescue
+					return []
+				end
 			end
 
 			def enable_detailed_montoring(region,instance_id)
+				begin
 				AWS.config(:access_key_id => Chef::Config[:knife][:aws_access_key_id],:secret_access_key => Chef::Config[:knife][:aws_secret_access_key])
 				AWS.memoize do 
 					ec2 = AWS::EC2.new(:region => region)
@@ -83,6 +97,12 @@ class Chef
 					if aws_obj.monitoring.eql?:disabled 
 					    aws_obj.enable_monitoring 
 					end
+					return true
+				end
+				rescue Exception => e
+					ui.error (e)
+					ui.error("Either instance:: #{instance_id} doesn't exist or instance doesn't exist in region #{region}")
+					return false
 				end
 			end
 
@@ -90,42 +110,20 @@ class Chef
 				node_name = Chef::Config[:knife][:chef_nodename]
 				instance_id = Chef::Config[:knife][:instance_id]
 				region = Chef::Config[:knife][:instance_region]
-				valid_return =  validate(node_name,instance_id,region)
+				valid_return =  validate
 				valid = valid_return[0]
-				check_condition = valid_return[1]
-				puts "Instance:: #{instance_id}"
+				region_of_instance = valid_return[1]
+				instance_id_to_monitor = valid_return[2]
+				puts valid
 				if valid
-					puts "Running enabling ec2 monitoring for #{Chef::Config[:knife][:chef_nodename]}"
-					puts "key:: #{Chef::Config[:knife][:aws_access_key_id]}"
-					puts "Access Key:: #{Chef::Config[:knife][:aws_secret_access_key]}"
-					puts "Instance ID:: #{Chef::Config[:knife][:instance]}"
-					node_name = Chef::Config[:knife][:chef_nodename]
-					instance_id = Chef::Config[:knife][:instance_id]
-					region = Chef::Config[:knife][:instance_region]
-					if check_condition == "check_on_nodename"
-						region_instanceid = get_region_instance_id(node_name)
-						instance_id = region_instanceid[1]
-						region = region_instanceid[0]
-					end
-						puts "Node:: #{node_name}, region:: #{region}, instance_id :: #{instance_id}"
+					puts "Running enabling ec2 monitoring for instance_id :: #{instance_id_to_monitor} in region #{region_of_instance}"
+					puts "Node:: #{node_name}, region:: #{region_of_instance}, instance_id :: #{instance_id_to_monitor}"
+				  status = enable_detailed_montoring(region_of_instance,instance_id_to_monitor)	
+					status ? ui.info("Detailed monitoring for instance_id :: #{instance_id_to_monitor} in region #{region_of_instance} completed") : ui.error("Detailed monitoring for instance_id :: #{instance_id_to_monitor} in region #{region_of_instance} failed !!")
 				else
 					puts "Invalid"
 					show_usage
 				end
-				#if validate(node_name,instance_id,region) 
-				#	puts "Can be enabled"
-				#else
-				#	puts "Failed"
-				#end
-				#AWS.config(:access_key_id => Chef::Config[:knife][:aws_access_key_id],:secret_access_key => Chef::Config[:knife][:aws_secret_access_key])
-				#AWS.memoize do 
-				#	ec2 = AWS::EC2.new(:region => "eu-west-1")
-				#	aws_obj = ec2.instances[Chef::Config[:knife][:instance]]
-				#	if aws_obj.monitoring.eql?:disabled 
-				#	    aws_obj.enable_monitoring 
-				#	end
-				#end
-				#puts "AMI ID from method:: #{get_region_instance_id(Chef::Config[:knife][:chef_nodename])}"
 			end
 		end
 	end
