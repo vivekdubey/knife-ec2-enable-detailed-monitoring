@@ -69,8 +69,13 @@ class Chef
 						end
 					else
 						ui.warn("Node name and instance ID is there")	
-						puts "Node name:: #{node_name}"
-						return get_region_instance_id(node_name)	
+						if get_region_instance_id(node_name).length == 0 
+							ui.error("#{node_name} doesn't exist")
+							ui.warn("Instance ID will get the preferance")
+							return [true,region,instance_id]
+						else
+							return get_region_instance_id(node_name)	
+						end
 					end
 				end
 			end
