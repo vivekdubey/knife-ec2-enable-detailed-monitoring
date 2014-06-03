@@ -1,6 +1,6 @@
 class Chef
 	class Knife
-		class EnableEc2Monitoring < Knife
+		class EnableEc2Monitoring < Chef::Knife
 			deps do
 				require 'chef/api_client'
 				require 'chef'
@@ -51,33 +51,38 @@ class Chef
 				node_name = Chef::Config[:knife][:chef_nodename]
         instance_id = Chef::Config[:knife][:instance_id]
         region = Chef::Config[:knife][:instance_region]
+				output = []
 				if node_name.nil?
 					if instance_id.nil?
 						ui.error("Both Chef Node name and instance id are nil!! Expecting at least one of them")
-						return [false]
+						output = [false]
 					else
 					  ui.warn("Node name nil not instance_id")
-						return [true,region,instance_id]
+						output = [true,region,instance_id]
 					end
 				else
 					if instance_id.nil?
 						ui.warn("Node name not nil and instance_id nil")	
-						puts "Output:: #{get_region_instance_id(node_name)}"
-						if get_region_instance_id(node_name).length == 0
+						output = get_region_instance_id(node_name)
+						puts "Output:: #{output}"
+						if output.length == 0
 							ui.error("Node name doesn't exist!!")
-							return [false]
+							output = [false]
 						end
 					else
 						ui.warn("Node name and instance ID is there")	
-						if get_region_instance_id(node_name).length == 0 
+						output = get_region_instance_id(node_name)
+
+						if output.length == 0 
 							ui.error("#{node_name} doesn't exist")
 							ui.warn("Instance ID will get the preferance")
-							return [true,region,instance_id]
+							output = [true,region,instance_id]
 						else
-							return get_region_instance_id(node_name)	
+							output = get_region_instance_id(node_name)
 						end
 					end
 				end
+				return output
 			end
 			
 			def get_region_instance_id(chef_node_name)
@@ -116,6 +121,7 @@ class Chef
 				instance_id = Chef::Config[:knife][:instance_id]
 				region = Chef::Config[:knife][:instance_region]
 				valid_return =  validate
+				puts "Valid_return :: #{valid_return}"
 				valid = valid_return[0]
 				region_of_instance = valid_return[1]
 				instance_id_to_monitor = valid_return[2]
